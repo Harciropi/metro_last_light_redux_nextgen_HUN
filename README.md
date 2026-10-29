@@ -1,5 +1,7 @@
 # Metro Last Light Redux Next-Gen – Magyarítás
 
+<a href="docs/images/borito_kicsi.jpg"><img src="docs/images/borito.png" alt="Metro Last Light Redux Next-Gen magyarítás – Steam" width="320"></a>
+
 Nem hivatalos magyarítás a **Metro Last Light Redux Steam next-gen Windows-kiadásához**. Magyar menük és feliratok, az új szövegek fordításával. A fegyvernevek eredeti angol alakban szerepelnek. Magyar szinkront nem tartalmaz.
 
 A telepítő külön választható összetevőként a főmenü reklámpaneljét is elrejtheti, magyarítás nélkül is. Ezzel a PROS-fiók QR-kódja és a PROS-fiókhoz kapcsolás sem érhető el. Az opció alapból ki van kapcsolva; az adatgyűjtés működését nem módosítja.
@@ -21,6 +23,14 @@ A telepítő külön választható összetevőként a főmenü reklámpaneljét 
 Indítsd el újra ugyanazt az EXE-t. Az összetevők külön ki- és bekapcsolhatók, vagy teljesen eltávolíthatók. A telepítő visszaállítja a mentett eredeti fájlokat; sikeres teljes eltávolításkor a saját mentéseit is törli. A játékmentések és személyes beállítások megmaradnak.
 
 Egy játékfrissítés visszaállíthatja a módosított fájlokat. Ilyenkor szükség lehet az összetevők ismételt alkalmazására vagy frissített telepítőre. A régi, legacy játékkiadás nem támogatott.
+
+## Képernyőképek
+
+![Magyar grafikai beállítások](docs/images/grafikai-beallitasok.jpg)
+
+![Magyar felirat játék közben](docs/images/magyar-felirat-01.jpg)
+
+![Magyar felirat játék közben](docs/images/magyar-felirat-02.jpg)
 
 ## Készítők
 
