@@ -1,0 +1,42 @@
+[
+  {
+    "Name": "stable_us.lng",
+    "Role": "Language",
+    "Resource": "content/localization/stable_us.lng"
+  },
+  {
+    "Name": "english-font-section.bin",
+    "Role": "FontSection",
+    "Resource": null
+  },
+  {
+    "Name": "font_metro_for_menu_main_strings_us.512",
+    "Role": "FontTexture",
+    "Resource": "content/textures/font/font_metro_for_menu_main_strings_us.512"
+  },
+  {
+    "Name": "font_metro_2034_font_2_us.512",
+    "Role": "FontTexture",
+    "Resource": "content/textures/font/font_metro_2034_font_2_us.512"
+  },
+  {
+    "Name": "font_metro_for_map_us.1024",
+    "Role": "FontTexture",
+    "Resource": "content/textures/font/font_metro_for_map_us.1024"
+  },
+  {
+    "Name": "font_metro_for_map_us.512",
+    "Role": "FontTexture",
+    "Resource": "content/textures/font/font_metro_for_map_us.512"
+  },
+  {
+    "Name": "font_metro_for_menu_us.512",
+    "Role": "FontTexture",
+    "Resource": "content/textures/font/font_metro_for_menu_us.512"
+  },
+  {
+    "Name": "font_font_regular_us.512",
+    "Role": "FontTexture",
+    "Resource": "content/textures/font/font_font_regular_us.512"
+  }
+]

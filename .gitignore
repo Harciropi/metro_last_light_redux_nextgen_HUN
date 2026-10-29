@@ -1,0 +1,15 @@
+# A telepítők és ellenőrzőösszegek a kiadásokhoz tartoznak.
+/dist/
+
+# Eredeti játékanyagok, helyi források, eszközök és próbamappák.
+/.private/
+/installer/payload/
+/installer/*.exe
+
+# Helyi naplók és gyorsítótárak.
+*.log
+__pycache__/
+*.py[cod]
+Thumbs.db
+Desktop.ini
+.DS_Store
