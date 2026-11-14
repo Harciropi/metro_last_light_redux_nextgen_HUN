@@ -32,6 +32,7 @@ function Read-HuPackage([string]$Folder){
   if((Get-HuHash $path) -ne $f.Sha256){throw 'BAD_PACKAGE'}
  }
  if(@($p.Files|Where-Object Role -eq 'Helper').Count -ne 1 -or @($p.Files|Where-Object Role -eq 'Language').Count -ne 1 -or @($p.Files|Where-Object Role -eq 'FontSection').Count -ne 1 -or @($p.Files|Where-Object Role -eq 'FontTexture').Count -ne 6){throw 'BAD_PACKAGE'}
+ if(@($p.Files|Where-Object Role -eq 'DlcFont').Count -ne 2){throw 'BAD_PACKAGE'}
  if(-not ('LastLightHu.ResourceIndex' -as [type])){Add-Type -Path (Join-Path $Folder 'Resources.cs')}
  return $p
 }
@@ -148,7 +149,12 @@ function Get-HuState([string]$Folder,$Package,[string]$Selection){
 }
 function Assert-HuSourceTargets($Index,$Package,$Selection=@('Translation')){
  $resources=@()
- if($Selection -contains 'Translation'){$resources=@('content/config.bin')+@($Package.Files|Where-Object {$_.Role -eq 'Language' -or $_.Role -eq 'FontTexture'}|ForEach-Object {$_.Resource})}
+ if($Selection -contains 'Translation'){
+  $resources=@('content/config.bin',[LastLightHu.ResourceIndex]::DlcLevel)+@($Package.Files|Where-Object {$_.Role -eq 'Language' -or $_.Role -eq 'FontTexture'}|ForEach-Object {$_.Resource})
+  foreach($f in @($Package.Files|Where-Object Role -eq 'DlcFont')){
+   if($Index.Files.ContainsKey($f.Resource)){throw 'FILE_CONFLICT'}
+  }
+ }
  foreach($resource in $resources){
   if(-not $Index.Files.ContainsKey($resource)){throw 'UNSUPPORTED_LAYOUT'}
   if($Index.Archives[$Index.Files[$resource].Archive] -notmatch '^content\d{2}\.vfs\d$'){throw 'FILE_CONFLICT'}
@@ -171,10 +177,14 @@ function New-HuOverlay([string]$Folder,[byte[]]$BaseIndex,$Package,[string]$Payl
  $config=[LastLightHu.ResourceIndex]::ReplaceEnglishFontSection($config,[IO.File]::ReadAllBytes((Join-Path $Payload $font.Name)))
  $config=[LastLightHu.ResourceIndex]::ArrangeBackButtons($config)
  $config=[LastLightHu.ResourceIndex]::SpaceDifficultyDescription($config)
- $resources=@($Package.Files|Where-Object {$_.Role -eq 'Language' -or $_.Role -eq 'FontTexture'})
- $paths=[string[]]::new($resources.Count+1);$contents=[byte[][]]::new($resources.Count+1)
+ $levelResource=[LastLightHu.ResourceIndex]::DlcLevel
+ $level=[LastLightHu.ResourceIndex]::PatchDlcBoard($index.Extract($Folder,$levelResource))
+ $config=[LastLightHu.ResourceIndex]::AddDlcBoardFont($config)
+ $resources=@($Package.Files|Where-Object {$_.Role -in 'Language','FontTexture','DlcFont'})
+ $paths=[string[]]::new($resources.Count+2);$contents=[byte[][]]::new($resources.Count+2)
  for($i=0;$i -lt $resources.Count;$i++){$paths[$i]=$resources[$i].Resource;$contents[$i]=[IO.File]::ReadAllBytes((Join-Path $Payload $resources[$i].Name))}
  $paths[-1]=$configResource;$contents[-1]=$config
+ $paths[-2]=$levelResource;$contents[-2]=$level
  # Returning a wrapper prevents PowerShell from flattening byte arrays.
  $overlay=$index.Overlay($HuArchive,$paths,$contents)
  return [pscustomobject]@{Index=$overlay[0];Archive=$overlay[1]}

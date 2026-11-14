@@ -1,5 +1,15 @@
 [
   {
+    "Name": "font_ganza_loot_hu.512",
+    "Role": "DlcFont",
+    "Resource": "content/textures/font/font_ganza_loot_hu.512"
+  },
+  {
+    "Name": "font_ganza_loot_hu.bin",
+    "Role": "DlcFont",
+    "Resource": "content/textures/font/font_ganza_loot_hu.bin"
+  },
+  {
     "Name": "stable_us.lng",
     "Role": "Language",
     "Resource": "content/localization/stable_us.lng"

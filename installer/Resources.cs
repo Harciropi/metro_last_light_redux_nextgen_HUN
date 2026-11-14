@@ -112,32 +112,71 @@ namespace LastLightHu {
             }
             if(write!=expected)throw new InvalidDataException("LZ4_FINAL_SIZE");return output;
         }
+        public const string DlcLevel = "content/maps/2034/dlc_faction_ganza/level.bin";
+        public const string DlcFont = "content/textures/font/font_ganza_loot_hu";
+        public const string RegularFont = "content/textures/font/font_font_regular_us";
+
         public byte[][] Overlay(string archiveName,string[] paths,byte[][] contents) {
             bool exists=Archives.Exists(delegate(string a){return String.Equals(a,archiveName,StringComparison.OrdinalIgnoreCase);});
             if(paths.Length!=contents.Length || paths.Length==0 || exists || Path.GetFileName(archiveName)!=archiveName || archiveName.Contains("\\") || archiveName.Contains("/") || !archiveName.EndsWith(".vfs0",StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("OVERLAY_LAYOUT");
             byte[] modified=(byte[])Data.Clone();var seen=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             byte[] archive;
+            var additions=new Dictionary<string,byte[]>(StringComparer.OrdinalIgnoreCase);
             using(var ms=new MemoryStream()) using(var w=new BinaryWriter(ms)) {
                 w.Write(0u);w.Write(0u);
                 for(int i=0;i<paths.Length;i++) {
                     ResourceEntry e;
-                    if(!seen.Add(paths[i]) || !Files.TryGetValue(paths[i],out e))throw new InvalidDataException("OVERLAY_RESOURCE");
+                    if(!seen.Add(paths[i]))throw new InvalidDataException("OVERLAY_RESOURCE");
                     uint offset=checked((uint)ms.Position),size=checked((uint)contents[i].Length);
-                    using(var es=new MemoryStream(modified,true))using(var ew=new BinaryWriter(es)) {
-                        es.Position=e.Record+2;ew.Write(checked((ushort)Archives.Count));ew.Write(offset);ew.Write(size);ew.Write(size);
+                    if(Files.TryGetValue(paths[i],out e)) {
+                        if(paths[i]==DlcFont+".512" || paths[i]==DlcFont+".bin")throw new InvalidDataException("FILE_CONFLICT");
+                        using(var es=new MemoryStream(modified,true))using(var ew=new BinaryWriter(es)) {
+                            es.Position=e.Record+2;ew.Write(checked((ushort)Archives.Count));ew.Write(offset);ew.Write(size);ew.Write(size);
+                        }
+                    } else {
+                        if(paths[i]!=DlcFont+".512" && paths[i]!=DlcFont+".bin")throw new InvalidDataException("OVERLAY_RESOURCE");
+                        using(var record=new MemoryStream())using(var rw=new BinaryWriter(record)) {
+                            byte[] name=Utf8.GetBytes(Path.GetFileName(paths[i])+"\0");
+                            rw.Write((ushort)0);rw.Write(checked((ushort)Archives.Count));rw.Write(offset);rw.Write(size);rw.Write(size);
+                            rw.Write((byte)name.Length);rw.Write((byte)0);rw.Write(name);
+                            additions.Add(paths[i],record.ToArray());
+                        }
                     }
                     w.Write(contents[i]);
                 }
                 uint payload=checked((uint)ms.Length-8);w.Write(3u);w.Write(16u);w.Write(Data,8,16);
                 ms.Position=4;w.Write(payload);archive=ms.ToArray();
             }
+            int insertAt=entries.Count;
+            if(additions.Count!=0) {
+                ResourceEntry original=Files[RegularFont+".512"];
+                int originalId=entries.IndexOf(original);
+                ResourceEntry parent=entries.Find(e=>e.Directory && e.Name=="font" && originalId>=e.First && originalId<e.First+e.Count);
+                if(parent==null)throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+                insertAt=parent.First+parent.Count;
+                using(var es=new MemoryStream(modified,true))using(var ew=new BinaryWriter(es)) {
+                    foreach(ResourceEntry entry in entries) {
+                        if(!entry.Directory)continue;
+                        if(entry==parent) { es.Position=entry.Record+2;ew.Write(checked((ushort)(entry.Count+additions.Count))); }
+                        else if(entry.First>=insertAt) { es.Position=entry.Record+4;ew.Write(checked((uint)(entry.First+additions.Count))); }
+                    }
+                    for(int p=entriesEnd;p<modified.Length-8;p+=20) {
+                        uint id=BitConverter.ToUInt32(modified,p+16);
+                        if(id>=entries.Count || entries[(int)id].Directory)throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+                        if(id>=insertAt) { es.Position=p+16;ew.Write(checked(id+(uint)additions.Count)); }
+                    }
+                }
+            }
             byte[] index;
             using(var ms=new MemoryStream())using(var w=new BinaryWriter(ms)) {
-                w.Write(Data,0,24);w.Write(checked((uint)Archives.Count+1));w.Write(fileCount);w.Write(directoryCount);
+                w.Write(Data,0,24);w.Write(checked((uint)Archives.Count+1));w.Write(checked(fileCount+(uint)additions.Count));w.Write(directoryCount);
                 w.Write(Data,36,archiveEnd-36);w.Write(Utf8.GetBytes(archiveName));w.Write((byte)0);w.Write(0u);w.Write(checked((uint)archive.Length));
-                w.Write(modified,archiveEnd,entriesEnd-archiveEnd);w.Write(Data,entriesEnd,Data.Length-entriesEnd);index=ms.ToArray();
+                int split=insertAt==entries.Count?entriesEnd:entries[insertAt].Record;
+                w.Write(modified,archiveEnd,split-archiveEnd);
+                foreach(byte[] record in additions.Values)w.Write(record);
+                w.Write(modified,split,modified.Length-split);index=ms.ToArray();
             }
-            var check=new ResourceIndex(index);if(check.Files.Count!=Files.Count || check.Archives.Count!=Archives.Count+1)throw new InvalidDataException("OVERLAY_VERIFY");
+            var check=new ResourceIndex(index);if(check.Files.Count!=Files.Count+additions.Count || check.Archives.Count!=Archives.Count+1)throw new InvalidDataException("OVERLAY_VERIFY");
             return new byte[][]{index,archive};
         }
         // Experimental native UI horizontal alignment, not coordinate padding.
@@ -283,6 +322,119 @@ namespace LastLightHu {
             if(matched!=1)throw new InvalidDataException("DIFFICULTY_LAYOUT");
             return output;
         }
+        const string DlcFontAlias = "ganza_loot_light";
+
+        static List<string> ReadDlcStrings(byte[] data,int start,int end,uint count) {
+            if(count>end-start)throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+            var strings=new List<string>();
+            for(uint i=0;i<count;i++) {
+                int zero=Array.IndexOf(data,(byte)0,start,end-start);
+                if(zero<0)throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+                strings.Add(Utf8.GetString(data,start,zero-start));
+                start=zero+1;
+            }
+            if(start!=end)throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+            return strings;
+        }
+
+        public static byte[] AddDlcBoardFont(byte[] config) {
+            int matches=0;
+            using(var result=new MemoryStream())using(var writer=new BinaryWriter(result)) {
+                foreach(int chunk in UiChunks(config,0,config.Length)) {
+                    int end=UiEnd(config,chunk);
+                    if(BitConverter.ToUInt32(config,chunk)!=0xFA8EEA67 ||
+                       Encoding.ASCII.GetString(config,chunk+8,end-chunk-8).IndexOf("font\\font_font_regular_us\0",StringComparison.Ordinal)<0) {
+                        writer.Write(config,chunk,end-chunk);
+                        continue;
+                    }
+                    matches++;
+                    int start=chunk+8;
+                    if(end-start<34 || config[start]!=4 || BitConverter.ToUInt32(config,start+1)!=1)
+                        throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+                    int stringChunk=checked(start+9+(int)BitConverter.ToUInt32(config,start+5));
+                    if(stringChunk!=checked(start+17+(int)BitConverter.ToUInt32(config,start+13)) ||
+                       stringChunk<start+22 || stringChunk+12>end ||
+                       BitConverter.ToUInt32(config,stringChunk)!=2 || UiEnd(config,stringChunk)!=end)
+                        throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+                    uint count=BitConverter.ToUInt32(config,stringChunk+8);
+                    var strings=ReadDlcStrings(config,stringChunk+12,end,count);
+                    var records=UiChunks(config,start+22,stringChunk);
+                    if(records.Count!=BitConverter.ToUInt32(config,start+18) || strings.Contains(DlcFontAlias))
+                        throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+                    byte[] clone=null;
+                    foreach(int record in records) {
+                        int length=UiEnd(config,record)-record;
+                        if(length<21)throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+                        uint name=BitConverter.ToUInt32(config,record+13),texture=BitConverter.ToUInt32(config,record+17);
+                        if(name>=count || texture>=count)throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+                        if(strings[(int)name]!="regular")continue;
+                        if(clone!=null || strings[(int)texture]!="font\\font_font_regular_us")
+                            throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+                        clone=new byte[length];Buffer.BlockCopy(config,record,clone,0,length);
+                    }
+                    if(clone==null)throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+                    byte[] extra=Utf8.GetBytes(DlcFontAlias+"\0font\\font_ganza_loot_hu\0");
+                    Buffer.BlockCopy(BitConverter.GetBytes(count),0,clone,13,4);
+                    Buffer.BlockCopy(BitConverter.GetBytes(count+1),0,clone,17,4);
+                    writer.Write(BitConverter.ToUInt32(config,chunk));writer.Write(end-start+clone.Length+extra.Length);
+                    writer.Write(config,start,5);
+                    writer.Write(BitConverter.ToUInt32(config,start+5)+(uint)clone.Length);
+                    writer.Write(config,start+9,4);
+                    writer.Write(BitConverter.ToUInt32(config,start+13)+(uint)clone.Length);
+                    writer.Write(config[start+17]);writer.Write(records.Count+1);
+                    writer.Write(config,start+22,stringChunk-start-22);writer.Write(clone);
+                    writer.Write(2u);writer.Write(BitConverter.ToUInt32(config,stringChunk+4)+(uint)extra.Length);
+                    writer.Write(count+2);writer.Write(config,stringChunk+12,end-stringChunk-12);writer.Write(extra);
+                }
+                if(matches!=1)throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+                return result.ToArray();
+            }
+        }
+
+        public static byte[] PatchDlcBoard(byte[] level) {
+            if(level.Length<32 || BitConverter.ToUInt32(level,0)!=0x6C76656C ||
+               UiEnd(level,0)!=level.Length || level[8]!=0x24)
+                throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+            int chunk=checked(17+(int)BitConverter.ToUInt32(level,13));
+            if(chunk<29 || chunk>level.Length-12 || BitConverter.ToUInt32(level,chunk)!=2 || UiEnd(level,chunk)!=level.Length)
+                throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+            uint count=BitConverter.ToUInt32(level,chunk+8);
+            var strings=ReadDlcStrings(level,chunk+12,level.Length,count);
+            int font=strings.IndexOf("regular");
+            if(font<0 || strings.Contains(DlcFontAlias))throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+            var targets=new HashSet<int>();
+            for(int i=1;i<=30;i++) {
+                int id=strings.IndexOf("dlc_ranger_loot_dsc_"+i);
+                if(id<0)throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+                targets.Add(id);
+            }
+            var bright=new HashSet<int>();var dark=new HashSet<int>();
+            byte[] extra=Utf8.GetBytes(DlcFontAlias+"\0");
+            byte[] output=new byte[level.Length+extra.Length];
+            Buffer.BlockCopy(level,0,output,0,level.Length);
+            uint white=0x3F7DFDFF;
+            for(int p=29;p+34<=chunk;p++) {
+                int id=BitConverter.ToInt32(level,p);
+                if(!targets.Contains(id) || BitConverter.ToInt32(level,p+30)!=font)continue;
+                uint red=BitConverter.ToUInt32(level,p+10);
+                if(BitConverter.ToUInt16(level,p+8)!=0x0100 || BitConverter.ToUInt32(level,p+14)!=red ||
+                   BitConverter.ToUInt32(level,p+18)!=red || BitConverter.ToUInt32(level,p+22)!=0x3F800000)
+                    throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+                if(red==0) {
+                    if(!dark.Add(id))throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+                } else if(red==white) {
+                    if(!bright.Add(id))throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+                    Buffer.BlockCopy(BitConverter.GetBytes(count),0,output,p+30,4);
+                } else throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+            }
+            if(!targets.SetEquals(bright) || !targets.SetEquals(dark))throw new InvalidDataException("UNSUPPORTED_LAYOUT");
+            Buffer.BlockCopy(extra,0,output,level.Length,extra.Length);
+            Buffer.BlockCopy(BitConverter.GetBytes(output.Length-8),0,output,4,4);
+            Buffer.BlockCopy(BitConverter.GetBytes(BitConverter.ToUInt32(level,chunk+4)+(uint)extra.Length),0,output,chunk+4,4);
+            Buffer.BlockCopy(BitConverter.GetBytes(count+1),0,output,chunk+8,4);
+            return output;
+        }
+
         public static byte[] ReplaceEnglishFontSection(byte[] target,byte[] replacement) {
             byte[] marker=Utf8.GetBytes("font\\font_font_regular_us\0");int found=0;var output=new MemoryStream();
             using(var r=new BinaryReader(new MemoryStream(target,false)))using(var w=new BinaryWriter(output)) {

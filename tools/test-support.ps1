@@ -53,9 +53,14 @@ try{
  $parsed=[LastLightHu.ResourceIndex]::new($sourceIndex)
  $config=[IO.File]::ReadAllBytes((Join-Path $projectRoot '.private\source\original\config.bin'))
  $configEntry=$parsed.Files['content/config.bin'];$sourceArchive=$parsed.Archives[$configEntry.Archive]
+ $level=[IO.File]::ReadAllBytes((Join-Path $projectRoot '.private\test-input\ganza-level.bin'))
+ $levelEntry=$parsed.Files[[LastLightHu.ResourceIndex]::DlcLevel];$levelArchive=$parsed.Archives[$levelEntry.Archive]
+ if($levelArchive -eq $sourceArchive){throw 'Expected separate fixture archives'}
  $fixtureIndex=[byte[]]$sourceIndex.Clone()
  $ms=[IO.MemoryStream]::new($fixtureIndex,$true);$bw=[IO.BinaryWriter]::new($ms)
- $ms.Position=$configEntry.Record+4;$bw.Write([uint32]0);$bw.Write([uint32]$config.Length);$bw.Write([uint32]$config.Length);$bw.Dispose();$ms.Dispose()
+ $ms.Position=$configEntry.Record+4;$bw.Write([uint32]0);$bw.Write([uint32]$config.Length);$bw.Write([uint32]$config.Length)
+ $ms.Position=$levelEntry.Record+4;$bw.Write([uint32]0);$bw.Write([uint32]$level.Length);$bw.Write([uint32]$level.Length)
+ $bw.Dispose();$ms.Dispose()
  $sdk=Find-TestSdk $sdkGameDir;$sdkBytes=$sdk.Bytes;$sdkOriginalHash=Get-HuBytesHash $sdkBytes
  $checks=[Collections.Generic.List[string]]::new()
 }catch{Clear-Fixtures;throw}
@@ -67,6 +72,7 @@ function New-Fixture([string]$Name){
  foreach($f in @('metro.exe','steam_api64.dll','amd_fidelityfx_dx12.dll')){[IO.File]::WriteAllText((Join-Path $dir $f),'FIXTURE ONLY - not executable')}
  [IO.File]::WriteAllBytes((Join-Path $dir 'content.vfx'),$fixtureIndex)
  [IO.File]::WriteAllBytes((Join-Path $dir $sourceArchive),$config)
+ [IO.File]::WriteAllBytes((Join-Path $dir $levelArchive),$level)
  [IO.File]::WriteAllText((Join-Path ([IO.Directory]::GetParent([IO.Directory]::GetParent($dir).FullName).FullName) 'appmanifest_287390.acf'),('"AppState" { "appid" "287390" "StateFlags" "4" "installdir" "LastLightFixture" "buildid" "fixture-unpinned" }'))
  [IO.File]::WriteAllText((Join-Path $dir 'user-sentinel.txt'),'preserve user data')
  return $dir

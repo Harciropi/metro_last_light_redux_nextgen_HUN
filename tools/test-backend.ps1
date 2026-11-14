@@ -18,7 +18,12 @@ $h=[Security.Cryptography.SHA256]::Create();try{$languageHash=[BitConverter]::To
 Check ($languageHash -eq (Get-HuHash (Join-Path $payload 'stable_us.lng'))) 'installed language bytes verified'
 $patchedConfig=$ownIndex.Extract($clean,'content/config.bin')
 $expectedConfig=[IO.File]::ReadAllBytes((Join-Path $projectRoot '.private\test-input\expected-config.bin'))
-$h=[Security.Cryptography.SHA256]::Create();try{Check ([Convert]::ToBase64String($h.ComputeHash($patchedConfig)) -eq [Convert]::ToBase64String($h.ComputeHash($expectedConfig))) 'installed config equals verified font patch'}finally{$h.Dispose()}
+Check ((Get-HuBytesHash $patchedConfig) -eq (Get-HuBytesHash $expectedConfig)) 'installed config equals the in-game-tested font configuration'
+$expectedLevel=Join-Path $projectRoot '.private\test-input\expected-ganza-level.bin'
+Check ((Get-HuBytesHash ($ownIndex.Extract($clean,[LastLightHu.ResourceIndex]::DlcLevel))) -eq (Get-HuHash $expectedLevel)) 'DLC level equals the in-game-tested patch'
+foreach($ext in @('.512','.bin')){
+ Check ((Get-HuBytesHash ($ownIndex.Extract($clean,([LastLightHu.ResourceIndex]::DlcFont+$ext)))) -eq (Get-HuHash (Join-Path $payload ('font_ganza_loot_hu'+$ext)))) 'DLC-specific font payload is applied'
+}
 Check ((Remove-Fixture $clean $pkg) -eq 'REMOVED') 'same-version removal'
 Check ((Get-HuHash (Join-Path $clean 'content.vfx')) -eq $originalHash) 'removal restores exact actual original'
 Check (-not [IO.Directory]::Exists((Join-Path $clean $HuBackup))) 'successful full removal deletes installer backups and directory'

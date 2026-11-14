@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='MetroLastLightHuVerify-') as folder:
     base=target/'$PLUGINSDIR';payload=base/'payload'
     manifest=json.loads((payload/'package.json').read_text(encoding='utf8'))
     sha=lambda b:hashlib.sha256(b).hexdigest().upper()
-    assert manifest['Version']==version and len(manifest['Files'])==9
+    assert manifest['Version']==version and len(manifest['Files'])==11
     for f in manifest['Files']:
         data=(payload/f['Name']).read_bytes();assert sha(data)==f['Sha256']
         source=ROOT/'installer/Resources.cs' if f['Role']=='Helper' else ROOT/'installer/payload'/f['Name']
@@ -21,5 +21,5 @@ with tempfile.TemporaryDirectory(prefix='MetroLastLightHuVerify-') as folder:
     assert re.search(r"\$TrustedManifestHash='([A-F0-9]{64})'",backend)[1]==sha((payload/'package.json').read_bytes())
     assert (base/'modern-wizard.bmp').read_bytes()==(ROOT/'installer/intaller_image.bmp').read_bytes()
     assert not list(target.rglob('pros.sdk.x64.dll')) and not list(target.rglob('metro.exe'))
-    report={'version':version,'payload_files_verified':9,'bitmap_verified':True,'original_executable_and_sdk_not_distributed':True,'exe_sha256':sha(exe.read_bytes())}
+    report={'version':version,'payload_files_verified':len(manifest['Files']),'bitmap_verified':True,'original_executable_and_sdk_not_distributed':True,'exe_sha256':sha(exe.read_bytes())}
     print(json.dumps(report,indent=2))
